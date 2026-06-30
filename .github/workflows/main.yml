@@ -28,7 +28,7 @@ jobs:
       # ======================
       - name: Clone kernel source
         run: |
-          git clone --depth=1 https://github.com/LineageOS/android_kernel_xiaomi_mt6785 kernel
+          git clone --depth=1 https://github.com/LineageOS/android_kernel_xiaomi_mt6785 kernel test -d kernel/drivers || (echo "Kernel broken" && exit 1)
 
       # ======================
       # 4. KernelSU-Next (CORRECT)
@@ -37,7 +37,8 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/KernelSU-Next/KernelSU-Next.git ksu
 
-          # 关键：必须在 kernel 目录执行
+          ls ksu/kernel
+
           bash ksu/kernel/setup.sh $GITHUB_WORKSPACE/kernel
 
       # ======================
@@ -47,11 +48,11 @@ jobs:
         run: |
           git clone https://github.com/sidex15/susfs4ksu.git susfs
 
-          # 不做 patch，只保留源码（避免炸 driver/include）
-          mkdir -p kernel/susfs
-          cp -r susfs/* kernel/susfs/
+          cd kernel
 
-          echo "SUSFS safe mode injected"
+           # ⚠️ 真实启用方式（编译宏）
+          echo "CONFIG_KSU=y" >> arch/arm64/configs/begonia_defconfig
+          echo "CONFIG_KSU_SUSFS=y" >> arch/arm64/configs/begonia_defconfig
 
       # ======================
       # 6. build kernel
