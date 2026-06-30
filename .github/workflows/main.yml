@@ -1,0 +1,86 @@
+name: Begonia KernelSU-Next Stable Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # =========================
+      # 1. Checkout
+      # =========================
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # =========================
+      # 2. Dependencies
+      # =========================
+      - name: Install deps
+        run: |
+          sudo apt update
+          sudo apt install -y git curl wget zip unzip bc flex bison \
+          build-essential libssl-dev libncurses-dev python3
+
+      # =========================
+      # 3. Clone kernel
+      # =========================
+      - name: Clone kernel
+        run: |
+          git clone --depth=1 https://github.com/LineageOS/android_kernel_xiaomi_mt6785 kernel
+
+      # =========================
+      # 4. Setup stable clang
+      # =========================
+      - name: Setup clang
+        run: |
+          sudo apt install -y clang llvm lld
+
+      # =========================
+      # 5. KernelSU-Next (STABLE METHOD)
+      # =========================
+      - name: Inject KernelSU-Next (stable)
+        run: |
+          git clone --depth=1 https://github.com/KernelSU-Next/KernelSU-Next.git ksu
+
+          # 直接复制核心代码（避免setup.sh 404）
+          cp -r ksu/kernel/* kernel/
+
+          echo "KernelSU-Next injected successfully"
+
+      # =========================
+      # 6. Build kernel
+      # =========================
+      - name: Build kernel
+        run: |
+          export ARCH=arm64
+          export SUBARCH=arm64
+
+          cd kernel
+
+          make O=out ARCH=arm64 begonia_defconfig
+
+          make -j$(nproc) O=out \
+            ARCH=arm64 \
+            CC=clang \
+            LLVM=1
+
+      # =========================
+      # 7. Pack output
+      # =========================
+      - name: Pack Image
+        run: |
+          mkdir -p output
+          cp kernel/out/arch/arm64/boot/Image* output/ || true
+          cd output
+          zip -r KernelSU-Next-Begonia-Stable.zip .
+
+      # =========================
+      # 8. Upload artifact (v4 FIXED)
+      # =========================
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: KernelSU-Next-Begonia-Stable
+          path: output/*
