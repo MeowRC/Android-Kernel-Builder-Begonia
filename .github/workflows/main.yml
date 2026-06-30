@@ -1,4 +1,4 @@
-name: Begonia Stable Daily Kernel (KSU + SUSFS Lite)
+name: Begonia Final Stable KernelSU-Next Build
 
 on:
   workflow_dispatch:
@@ -9,13 +9,13 @@ jobs:
 
     steps:
       # ======================
-      # checkout
+      # 1. checkout
       # ======================
       - name: Checkout
         uses: actions/checkout@v4
 
       # ======================
-      # deps
+      # 2. deps
       # ======================
       - name: Install dependencies
         run: |
@@ -24,35 +24,37 @@ jobs:
           build-essential libssl-dev libncurses-dev clang llvm lld
 
       # ======================
-      # kernel source
+      # 3. kernel source
       # ======================
-      - name: Clone kernel
+      - name: Clone kernel source
         run: |
           git clone --depth=1 https://github.com/LineageOS/android_kernel_xiaomi_mt6785 kernel
 
       # ======================
-      # KernelSU-Next (stable)
+      # 4. KernelSU-Next (CORRECT)
       # ======================
       - name: Apply KernelSU-Next
         run: |
           git clone --depth=1 https://github.com/KernelSU-Next/KernelSU-Next.git ksu
+
+          # 关键：必须在 kernel 目录执行
           bash ksu/kernel/setup.sh $GITHUB_WORKSPACE/kernel
 
       # ======================
-      # SUSFS (LIGHT MODE ONLY)
+      # 5. SUSFS (SAFE MODE)
       # ======================
-      - name: Add SUSFS Lite
+      - name: Add SUSFS safely
         run: |
           git clone https://github.com/sidex15/susfs4ksu.git susfs
 
-          # 只做源码保留，不做强制patch
+          # 不做 patch，只保留源码（避免炸 driver/include）
           mkdir -p kernel/susfs
           cp -r susfs/* kernel/susfs/
 
-          echo "SUSFS Lite added (no hooks enabled)"
+          echo "SUSFS safe mode injected"
 
       # ======================
-      # build
+      # 6. build kernel
       # ======================
       - name: Build kernel
         run: |
@@ -64,20 +66,21 @@ jobs:
           make -j$(nproc) O=out LLVM=1
 
       # ======================
-      # pack
+      # 7. pack
       # ======================
       - name: Pack kernel
         run: |
-          mkdir out
-          cp kernel/out/arch/arm64/boot/Image* out/ || true
-          cd out
-          zip -r begonia-stable-daily.zip .
+          mkdir -p output
+          cp kernel/out/arch/arm64/boot/Image* output/ || true
+
+          cd output
+          zip -r begonia-final-kernel.zip .
 
       # ======================
-      # upload
+      # 8. upload
       # ======================
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: begonia-stable-daily
-          path: out/*
+          name: begonia-final-kernel
+          path: output/*
