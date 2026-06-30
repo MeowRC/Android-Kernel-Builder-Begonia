@@ -1,4 +1,4 @@
-name: Begonia KernelSU-Next Safe Build
+name: Begonia Stable Daily Kernel (KSU + SUSFS Lite)
 
 on:
   workflow_dispatch:
@@ -8,73 +8,76 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # =========================
-      # 1. checkout
-      # =========================
+      # ======================
+      # checkout
+      # ======================
       - name: Checkout
         uses: actions/checkout@v4
 
-      # =========================
-      # 2. deps
-      # =========================
-      - name: Install deps
+      # ======================
+      # deps
+      # ======================
+      - name: Install dependencies
         run: |
           sudo apt update
           sudo apt install -y git curl wget zip unzip bc flex bison \
-          build-essential libssl-dev libncurses-dev python3 clang llvm lld
+          build-essential libssl-dev libncurses-dev clang llvm lld
 
-      # =========================
-      # 3. kernel source
-      # =========================
+      # ======================
+      # kernel source
+      # ======================
       - name: Clone kernel
         run: |
           git clone --depth=1 https://github.com/LineageOS/android_kernel_xiaomi_mt6785 kernel
 
-      # =========================
-      # 4. KernelSU-Next (SAFE METHOD)
-      # =========================
-      - name: Apply KernelSU-Next safely
+      # ======================
+      # KernelSU-Next (stable)
+      # ======================
+      - name: Apply KernelSU-Next
         run: |
           git clone --depth=1 https://github.com/KernelSU-Next/KernelSU-Next.git ksu
+          bash ksu/kernel/setup.sh $GITHUB_WORKSPACE/kernel
 
-          cd ksu
+      # ======================
+      # SUSFS (LIGHT MODE ONLY)
+      # ======================
+      - name: Add SUSFS Lite
+        run: |
+          git clone https://github.com/sidex15/susfs4ksu.git susfs
 
-          # 关键：必须指定 kernel path，不做 cp 覆盖
-          bash kernel/setup.sh $GITHUB_WORKSPACE/kernel
+          # 只做源码保留，不做强制patch
+          mkdir -p kernel/susfs
+          cp -r susfs/* kernel/susfs/
 
-      # =========================
-      # 5. build
-      # =========================
+          echo "SUSFS Lite added (no hooks enabled)"
+
+      # ======================
+      # build
+      # ======================
       - name: Build kernel
         run: |
           export ARCH=arm64
-          export SUBARCH=arm64
-
           cd kernel
 
-          make O=out ARCH=arm64 begonia_defconfig
+          make O=out begonia_defconfig
 
-          make -j$(nproc) O=out \
-            ARCH=arm64 \
-            CC=clang \
-            LLVM=1
+          make -j$(nproc) O=out LLVM=1
 
-      # =========================
-      # 6. pack
-      # =========================
-      - name: Pack
+      # ======================
+      # pack
+      # ======================
+      - name: Pack kernel
         run: |
-          mkdir -p out_zip
-          cp kernel/out/arch/arm64/boot/Image* out_zip/ || true
+          mkdir out
+          cp kernel/out/arch/arm64/boot/Image* out/ || true
+          cd out
+          zip -r begonia-stable-daily.zip .
 
-          cd out_zip
-          zip -r KernelSU-Next-Begonia.zip .
-
-      # =========================
-      # 7. upload
-      # =========================
-      - name: Upload
+      # ======================
+      # upload
+      # ======================
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: KernelSU-Next-Begonia
-          path: out_zip/*
+          name: begonia-stable-daily
+          path: out/*
