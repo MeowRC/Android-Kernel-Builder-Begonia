@@ -1,0 +1,80 @@
+name: Begonia KernelSU-Next Safe Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # =========================
+      # 1. checkout
+      # =========================
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # =========================
+      # 2. deps
+      # =========================
+      - name: Install deps
+        run: |
+          sudo apt update
+          sudo apt install -y git curl wget zip unzip bc flex bison \
+          build-essential libssl-dev libncurses-dev python3 clang llvm lld
+
+      # =========================
+      # 3. kernel source
+      # =========================
+      - name: Clone kernel
+        run: |
+          git clone --depth=1 https://github.com/LineageOS/android_kernel_xiaomi_mt6785 kernel
+
+      # =========================
+      # 4. KernelSU-Next (SAFE METHOD)
+      # =========================
+      - name: Apply KernelSU-Next safely
+        run: |
+          git clone --depth=1 https://github.com/KernelSU-Next/KernelSU-Next.git ksu
+
+          cd ksu
+
+          # 关键：必须指定 kernel path，不做 cp 覆盖
+          bash kernel/setup.sh $GITHUB_WORKSPACE/kernel
+
+      # =========================
+      # 5. build
+      # =========================
+      - name: Build kernel
+        run: |
+          export ARCH=arm64
+          export SUBARCH=arm64
+
+          cd kernel
+
+          make O=out ARCH=arm64 begonia_defconfig
+
+          make -j$(nproc) O=out \
+            ARCH=arm64 \
+            CC=clang \
+            LLVM=1
+
+      # =========================
+      # 6. pack
+      # =========================
+      - name: Pack
+        run: |
+          mkdir -p out_zip
+          cp kernel/out/arch/arm64/boot/Image* out_zip/ || true
+
+          cd out_zip
+          zip -r KernelSU-Next-Begonia.zip .
+
+      # =========================
+      # 7. upload
+      # =========================
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: KernelSU-Next-Begonia
+          path: out_zip/*
